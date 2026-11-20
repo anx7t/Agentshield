@@ -1,24 +1,29 @@
 // STUB: placeholder route owner unassigned — replace with real implementation
-import express from 'express';
-import crypto from 'crypto';
-import db from '../db/init.js';
+const express = require('express');
+const crypto = require('crypto');
+const { getDb } = require('../db/db_init');
+const validateBody = require('../middleware/validateBody');
 
 const router = express.Router();
 
-router.post('/', (req, res) => {
-  const { agentId, amountLimit, allowedPayees, expiresAt } = req.body;
-  const mandateId = crypto.randomUUID();
+router.post('/', validateBody(['agent_id', 'max_amount']), (req, res) => {
+  const { agent_id, max_amount, allowed_payees } = req.body;
+  const db = getDb();
 
+  const agent = db.prepare('SELECT id FROM agents WHERE id = ?').get(agent_id);
+  if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+  const mandateId = crypto.randomUUID();
   db.prepare(
-    'INSERT INTO mandates (id, agent_id, amount_limit, allowed_payees, expires_at, revoked) VALUES (?, ?, ?, ?, ?, 0)'
-  ).run(mandateId, agentId, amountLimit, JSON.stringify(allowedPayees), expiresAt);
+    'INSERT INTO mandates (id, agent_id, max_amount, allowed_payees) VALUES (?, ?, ?, ?)'
+  ).run(mandateId, agent_id, max_amount, JSON.stringify(allowed_payees || []));
 
   res.json({ mandateId });
 });
 
 router.delete('/:agentId', (req, res) => {
-  db.prepare('UPDATE mandates SET revoked = 1 WHERE agent_id = ?').run(req.params.agentId);
+  getDb().prepare('UPDATE mandates SET revoked = 1 WHERE agent_id = ?').run(req.params.agentId);
   res.json({ revoked: true });
 });
 
-export default router;
+module.exports = router;

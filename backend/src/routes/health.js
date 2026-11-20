@@ -1,12 +1,12 @@
-import express from 'express';
-import db from '../db/init.js';
+const express = require('express');
+const { getDb } = require('../db/db_init');
 
 const router = express.Router();
 
 router.get('/', (req, res) => {
   let databaseStatus = 'connected';
   try {
-    db.prepare('SELECT 1').get();
+    getDb().prepare('SELECT 1').get();
   } catch {
     databaseStatus = 'disconnected';
   }
@@ -32,4 +32,4 @@ router.get('/integration', (req, res) => {
   });
 });
 
-export default router;
+module.exports = router;

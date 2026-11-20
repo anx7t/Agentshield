@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+const crypto = require('crypto');
 
 const BASE_URL = 'http://localhost:3001/api';
 
@@ -24,17 +24,18 @@ async function post(path, body) {
 
 async function main() {
   console.log('--- Registering NormalBot ---');
-  const { agentId, secret } = await post('/agent/register', { name: 'NormalBot' });
+  const { agentId, secret } = await post('/agent/register', {
+    name: 'NormalBot',
+    email: `normal_${Date.now()}@sim.io`,
+  });
   console.log(`agentId: ${agentId}`);
 
   console.log('--- Creating mandate ---');
   const allowedPayees = ['HDFC_ACC_001', 'SBI_ACC_002'];
-  const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 30; // 30 days from now
   const { mandateId } = await post('/mandate', {
-    agentId,
-    amountLimit: 5000,
-    allowedPayees,
-    expiresAt,
+    agent_id: agentId,
+    max_amount: 5000,
+    allowed_payees: allowedPayees,
   });
   console.log(`mandateId: ${mandateId}`);
 
@@ -49,7 +50,7 @@ async function main() {
     const signature = sign(agentId, txn.payee, txn.amount, secret);
     try {
       const result = await post('/transaction/request', {
-        agentId,
+        agent_id: agentId,
         payee: txn.payee,
         amount: txn.amount,
         signature,

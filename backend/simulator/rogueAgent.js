@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+const crypto = require('crypto');
 
 const BASE_URL = 'http://localhost:3001/api';
 
@@ -35,7 +35,10 @@ function report(label, { httpStatus, data }, expect) {
 
 async function main() {
   console.log('--- Registering RogueBot ---');
-  const { data: regData } = await post('/agent/register', { name: 'RogueBot' });
+  const { data: regData } = await post('/agent/register', {
+    name: 'RogueBot',
+    email: `rogue_${Date.now()}@sim.io`,
+  });
   if (!regData?.agentId) {
     throw new Error('Registration failed, cannot continue');
   }
@@ -44,15 +47,14 @@ async function main() {
 
   console.log('--- Creating mandate (limit 5000, HDFC_ACC_001 / SBI_ACC_002) ---');
   const allowedPayees = ['HDFC_ACC_001', 'SBI_ACC_002'];
-  const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 30;
-  await post('/mandate', { agentId, amountLimit: 5000, allowedPayees, expiresAt });
+  await post('/mandate', { agent_id: agentId, max_amount: 5000, allowed_payees: allowedPayees });
 
   console.log('--- ATTEMPT 1: over-limit amount (99999) to allowed payee ---');
   {
     const payee = 'HDFC_ACC_001';
     const amount = 99999;
     const signature = sign(agentId, payee, amount, secret);
-    const result = await post('/transaction/request', { agentId, payee, amount, signature });
+    const result = await post('/transaction/request', { agent_id: agentId, payee, amount, signature });
     report('ATTEMPT 1', result, (httpStatus, data) =>
       httpStatus === 200 && (data?.status === 'BLOCKED' || data?.status === 'PENDING')
     );
@@ -63,7 +65,7 @@ async function main() {
     const payee = 'UNKNOWN_ACC';
     const amount = 1000;
     const signature = sign(agentId, payee, amount, secret);
-    const result = await post('/transaction/request', { agentId, payee, amount, signature });
+    const result = await post('/transaction/request', { agent_id: agentId, payee, amount, signature });
     report('ATTEMPT 2', result, (httpStatus, data) =>
       httpStatus === 200 && (data?.status === 'BLOCKED' || data?.status === 'PENDING')
     );
@@ -74,7 +76,7 @@ async function main() {
     const payee = 'HDFC_ACC_001';
     const amount = 500;
     const forgedSignature = 'deadbeef'.repeat(8); // not derived from secret
-    const result = await post('/transaction/request', { agentId, payee, amount, signature: forgedSignature });
+    const result = await post('/transaction/request', { agent_id: agentId, payee, amount, signature: forgedSignature });
     report('ATTEMPT 3', result, (httpStatus) => httpStatus === 401);
   }
 }
