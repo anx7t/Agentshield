@@ -18,5 +18,5 @@ app.get('/api/transactions', (req, res) => {
   res.json(db.prepare('SELECT * FROM transactions ORDER BY created_at DESC').all());
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`AgentShield backend listening on port ${PORT}`));
