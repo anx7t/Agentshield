@@ -1,11 +1,19 @@
 // Rogue agent simulator — fires bad transactions to trigger PENDING/BLOCKED
 // Usage: node simulator/rogueAgent.js
 // Requires server running on PORT (default 3000)
+const crypto = require('crypto');
 
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const INTERVAL_MS = 2000;
 
 const ROGUE_PAYEES = ['payee_unknown', 'payee_evil', 'payee_forged'];
+
+function sign(agentId, payee, amount, secret) {
+  return crypto
+    .createHmac('sha256', secret)
+    .update(agentId + payee + String(amount))
+    .digest('hex');
+}
 
 async function register() {
   const r = await fetch(`${BASE}/api/agent/register`, {
@@ -25,7 +33,7 @@ async function createMandate(agentId) {
   return r.json();
 }
 
-async function fireRogueTransaction(agentId, type) {
+async function fireRogueTransaction(agentId, secret, type) {
   let amount, payee, agentOverride;
 
   if (type === 'over_limit') {
@@ -41,7 +49,13 @@ async function fireRogueTransaction(agentId, type) {
     agentOverride = 'forged_agent_' + Math.random().toString(36).slice(2);
   }
 
-  const body = { agent_id: agentOverride || agentId, amount, payee };
+  const effectiveAgentId = agentOverride || agentId;
+  // real agent: sign with the real secret but deliberately wrong when impersonating a fake agent
+  const signature = agentOverride
+    ? 'deadbeef'.repeat(8)
+    : sign(effectiveAgentId, payee, amount, secret);
+
+  const body = { agent_id: effectiveAgentId, amount, payee, signature };
   const r = await fetch(`${BASE}/api/transaction/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,7 +74,7 @@ const attackTypes = ['over_limit', 'bad_payee', 'forged_signature'];
 let tick = 0;
 
 (async () => {
-  const { agentId } = await register();
+  const { agentId, secret } = await register();
   console.log(`[rogueAgent] Registered as ${agentId}`);
 
   await createMandate(agentId);
@@ -69,6 +83,6 @@ let tick = 0;
   setInterval(() => {
     const type = attackTypes[tick % attackTypes.length];
     tick++;
-    fireRogueTransaction(agentId, type);
+    fireRogueTransaction(agentId, secret, type);
   }, INTERVAL_MS);
 })();
