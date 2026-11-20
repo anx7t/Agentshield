@@ -1,6 +1,12 @@
+// Rogue agent simulator — fires bad transactions to trigger PENDING/BLOCKED
+// Usage: node simulator/rogueAgent.js
+// Requires server running on PORT (default 3000)
 const crypto = require('crypto');
 
-const BASE_URL = 'http://localhost:3001/api';
+const BASE = process.env.BASE_URL || 'http://localhost:3000';
+const INTERVAL_MS = 2000;
+
+const ROGUE_PAYEES = ['payee_unknown', 'payee_evil', 'payee_forged'];
 
 function sign(agentId, payee, amount, secret) {
   return crypto
@@ -9,79 +15,74 @@ function sign(agentId, payee, amount, secret) {
     .digest('hex');
 }
 
-async function post(path, body) {
-  const res = await fetch(`${BASE_URL}${path}`, {
+async function register() {
+  const r = await fetch(`${BASE}/api/agent/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Rogue Bot', email: `rogue_${Date.now()}@sim.io` }),
+  });
+  return r.json();
+}
+
+async function createMandate(agentId) {
+  const r = await fetch(`${BASE}/api/mandate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_id: agentId, max_amount: 2000, allowed_payees: ['payee_alpha'] }),
+  });
+  return r.json();
+}
+
+async function fireRogueTransaction(agentId, secret, type) {
+  let amount, payee, agentOverride;
+
+  if (type === 'over_limit') {
+    amount = Math.floor(Math.random() * 5000) + 2001; // always over 2000
+    payee = 'payee_alpha';
+  } else if (type === 'bad_payee') {
+    amount = Math.floor(Math.random() * 1000) + 100;
+    payee = ROGUE_PAYEES[Math.floor(Math.random() * ROGUE_PAYEES.length)];
+  } else {
+    // forged signature — use a random (non-existent) agent_id
+    amount = 999;
+    payee = 'payee_alpha';
+    agentOverride = 'forged_agent_' + Math.random().toString(36).slice(2);
+  }
+
+  const effectiveAgentId = agentOverride || agentId;
+  // real agent: sign with the real secret but deliberately wrong when impersonating a fake agent
+  const signature = agentOverride
+    ? 'deadbeef'.repeat(8)
+    : sign(effectiveAgentId, payee, amount, secret);
+
+  const body = { agent_id: effectiveAgentId, amount, payee, signature };
+  const r = await fetch(`${BASE}/api/transaction/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    // no JSON body
-  }
-  return { httpStatus: res.status, data };
-}
-
-function report(label, { httpStatus, data }, expect) {
-  const txnStatus = data?.status ?? data?.error ?? 'N/A';
-  const riskScore = data?.riskScore ?? 'N/A';
-  const pass = expect(httpStatus, data);
-  console.log(
-    `${label}: HTTP ${httpStatus} | status: ${txnStatus} | riskScore: ${riskScore} | ${pass ? 'PASS' : 'FAIL'}`
-  );
-}
-
-async function main() {
-  console.log('--- Registering RogueBot ---');
-  const { data: regData } = await post('/agent/register', {
-    name: 'RogueBot',
-    email: `rogue_${Date.now()}@sim.io`,
-  });
-  if (!regData?.agentId) {
-    throw new Error('Registration failed, cannot continue');
-  }
-  const { agentId, secret } = regData;
-  console.log(`agentId: ${agentId}`);
-
-  console.log('--- Creating mandate (limit 5000, HDFC_ACC_001 / SBI_ACC_002) ---');
-  const allowedPayees = ['HDFC_ACC_001', 'SBI_ACC_002'];
-  await post('/mandate', { agent_id: agentId, max_amount: 5000, allowed_payees: allowedPayees });
-
-  console.log('--- ATTEMPT 1: over-limit amount (99999) to allowed payee ---');
-  {
-    const payee = 'HDFC_ACC_001';
-    const amount = 99999;
-    const signature = sign(agentId, payee, amount, secret);
-    const result = await post('/transaction/request', { agent_id: agentId, payee, amount, signature });
-    report('ATTEMPT 1', result, (httpStatus, data) =>
-      httpStatus === 200 && (data?.status === 'BLOCKED' || data?.status === 'PENDING')
-    );
-  }
-
-  console.log('--- ATTEMPT 2: payee not in whitelist (UNKNOWN_ACC) ---');
-  {
-    const payee = 'UNKNOWN_ACC';
-    const amount = 1000;
-    const signature = sign(agentId, payee, amount, secret);
-    const result = await post('/transaction/request', { agent_id: agentId, payee, amount, signature });
-    report('ATTEMPT 2', result, (httpStatus, data) =>
-      httpStatus === 200 && (data?.status === 'BLOCKED' || data?.status === 'PENDING')
-    );
-  }
-
-  console.log('--- ATTEMPT 3: forged/invalid HMAC signature ---');
-  {
-    const payee = 'HDFC_ACC_001';
-    const amount = 500;
-    const forgedSignature = 'deadbeef'.repeat(8); // not derived from secret
-    const result = await post('/transaction/request', { agent_id: agentId, payee, amount, signature: forgedSignature });
-    report('ATTEMPT 3', result, (httpStatus) => httpStatus === 401);
+  const data = await r.json();
+  const label = `[rogueAgent:${type}]`;
+  if (data.status) {
+    console.log(`${label} amount=${amount} payee=${payee} → status=${data.status} score=${data.riskScore}`);
+  } else {
+    console.log(`${label} ✗ rejected: ${data.error}`);
   }
 }
 
-main().catch((err) => {
-  console.error('rogueAgent simulator failed:', err.message);
-  process.exit(1);
-});
+const attackTypes = ['over_limit', 'bad_payee', 'forged_signature'];
+let tick = 0;
+
+(async () => {
+  const { agentId, secret } = await register();
+  console.log(`[rogueAgent] Registered as ${agentId}`);
+
+  await createMandate(agentId);
+  console.log('[rogueAgent] Mandate created. Firing rogue transactions every 2s...');
+
+  setInterval(() => {
+    const type = attackTypes[tick % attackTypes.length];
+    tick++;
+    fireRogueTransaction(agentId, secret, type);
+  }, INTERVAL_MS);
+})();

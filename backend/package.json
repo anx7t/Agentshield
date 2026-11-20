@@ -1,15 +1,28 @@
 {
-  "name": "agentshield-backend",
+  "name": "backend",
   "version": "1.0.0",
-  "type": "commonjs",
+  "description": "",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed": "node src/db/seed.js",
     "sim:normal": "node simulator/normalAgent.js",
-    "sim:rogue": "node simulator/rogueAgent.js"
+    "sim:rogue": "node simulator/rogueAgent.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
-    "express": "^4.19.2"
+    "better-sqlite3": "^13.2.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "uid": "^2.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

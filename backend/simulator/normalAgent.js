@@ -1,6 +1,12 @@
+// Normal agent simulator — fires valid transactions every 2s
+// Usage: node simulator/normalAgent.js
+// Requires server running on PORT (default 3000)
 const crypto = require('crypto');
 
-const BASE_URL = 'http://localhost:3001/api';
+const BASE = process.env.BASE_URL || 'http://localhost:3000';
+const INTERVAL_MS = 2000;
+
+const PAYEES = ['payee_alpha', 'payee_beta'];
 
 function sign(agentId, payee, amount, secret) {
   return crypto
@@ -9,60 +15,43 @@ function sign(agentId, payee, amount, secret) {
     .digest('hex');
 }
 
-async function post(path, body) {
-  const res = await fetch(`${BASE_URL}${path}`, {
+async function register() {
+  const r = await fetch(`${BASE}/api/agent/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ name: 'Normal Bot', email: `normal_${Date.now()}@sim.io` }),
   });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(`POST ${path} failed (${res.status}): ${JSON.stringify(data)}`);
-  }
-  return data;
+  return r.json();
 }
 
-async function main() {
-  console.log('--- Registering NormalBot ---');
-  const { agentId, secret } = await post('/agent/register', {
-    name: 'NormalBot',
-    email: `normal_${Date.now()}@sim.io`,
+async function createMandate(agentId) {
+  const r = await fetch(`${BASE}/api/mandate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_id: agentId, max_amount: 5000, allowed_payees: PAYEES }),
   });
-  console.log(`agentId: ${agentId}`);
-
-  console.log('--- Creating mandate ---');
-  const allowedPayees = ['HDFC_ACC_001', 'SBI_ACC_002'];
-  const { mandateId } = await post('/mandate', {
-    agent_id: agentId,
-    max_amount: 5000,
-    allowed_payees: allowedPayees,
-  });
-  console.log(`mandateId: ${mandateId}`);
-
-  const transactions = [
-    { payee: 'HDFC_ACC_001', amount: 100 },
-    { payee: 'SBI_ACC_002', amount: 2500 },
-    { payee: 'HDFC_ACC_001', amount: 4999 },
-  ];
-
-  for (const [i, txn] of transactions.entries()) {
-    console.log(`--- Transaction ${i + 1}: ${txn.payee}, amount ${txn.amount} ---`);
-    const signature = sign(agentId, txn.payee, txn.amount, secret);
-    try {
-      const result = await post('/transaction/request', {
-        agent_id: agentId,
-        payee: txn.payee,
-        amount: txn.amount,
-        signature,
-      });
-      console.log(`status: ${result.status}, riskScore: ${result.riskScore}, txnId: ${result.txnId}`);
-    } catch (err) {
-      console.error(`Transaction ${i + 1} errored: ${err.message}`);
-    }
-  }
+  return r.json();
 }
 
-main().catch((err) => {
-  console.error('normalAgent simulator failed:', err.message);
-  process.exit(1);
-});
+async function fireTransaction(agentId, secret) {
+  const amount = Math.floor(Math.random() * 4000) + 100; // always under 5000
+  const payee = PAYEES[Math.floor(Math.random() * PAYEES.length)];
+  const signature = sign(agentId, payee, amount, secret);
+  const r = await fetch(`${BASE}/api/transaction/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_id: agentId, amount, payee, signature }),
+  });
+  const data = await r.json();
+  console.log(`[normalAgent] amount=${amount} payee=${payee} → status=${data.status} score=${data.riskScore} txnId=${data.txnId}`);
+}
+
+(async () => {
+  const { agentId, secret } = await register();
+  console.log(`[normalAgent] Registered as ${agentId}`);
+
+  await createMandate(agentId);
+  console.log('[normalAgent] Mandate created. Firing transactions every 2s...');
+
+  setInterval(() => fireTransaction(agentId, secret), INTERVAL_MS);
+})();

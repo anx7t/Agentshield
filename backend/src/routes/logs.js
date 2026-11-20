@@ -3,8 +3,9 @@ const { getDb } = require('../db/db_init');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const rows = getDb().prepare(`
+// GET /api/logs — all logs joined with transaction hash chain
+router.get('/logs', (req, res) => {
+  const logs = getDb().prepare(`
     SELECT
       l.id,
       l.transaction_id,
@@ -23,7 +24,7 @@ router.get('/', (req, res) => {
     ORDER BY l.created_at ASC
   `).all();
 
-  res.json(rows);
+  res.json({ logs });
 });
 
 module.exports = router;

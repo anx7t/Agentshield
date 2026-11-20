@@ -1,24 +1,29 @@
-// STUB: placeholder for Ankit — replace with his real version
+require('dotenv').config();
 const express = require('express');
-const { initDb, getDb } = require('./db/db_init');
-const agentRouter = require('./routes/agent');
-const mandateRouter = require('./routes/mandate');
-const transactionRouter = require('./routes/transaction');
-const logsRouter = require('./routes/logs');
+const cors = require('cors');
+const { initDb } = require('./db/db_init');
+
+const mandateRoutes = require('./routes/mandates');
+const transactionRoutes = require('./routes/transactions');
+const agentRoutes = require('./routes/agents');
+const logsRoutes = require('./routes/logs');
+const demoRoutes = require('./routes/demo');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
 app.use(express.json());
 
 initDb();
 
-app.use('/api/agent', agentRouter);
-app.use('/api/mandate', mandateRouter);
-app.use('/api/transaction', transactionRouter);
-app.use('/api/logs', logsRouter);
+app.use('/api', agentRoutes);
+app.use('/api', mandateRoutes);
+app.use('/api', transactionRoutes);
+app.use('/api', logsRoutes);
+app.use('/api', demoRoutes);
 
-app.get('/api/transactions', (req, res) => {
-  res.json(getDb().prepare('SELECT * FROM transactions ORDER BY created_at DESC').all());
-});
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`AgentShield backend listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`AgentShield backend running on port ${PORT}`));
