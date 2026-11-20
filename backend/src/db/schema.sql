@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  secret TEXT,
   created_at DATETIME DEFAULT (datetime('now'))
 );
 

@@ -19,7 +19,7 @@ router.post('/agent/register', (req, res) => {
     const agentId = uid();
     const secret = crypto.randomBytes(32).toString('hex');
 
-    getDb().prepare('INSERT INTO agents (id, name, email) VALUES (?, ?, ?)').run(agentId, name, email);
+    getDb().prepare('INSERT INTO agents (id, name, email, secret) VALUES (?, ?, ?, ?)').run(agentId, name, email, secret);
 
     res.status(201).json({ agentId, secret });
   } catch (err) {
