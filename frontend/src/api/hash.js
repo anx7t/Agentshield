@@ -22,10 +22,12 @@ export function hashTransaction(txn, status = txn.status) {
   return sha256(`${txn.prevHash || '0'}:${txn.id}:${txn.amount}:${txn.payee}:${status}`)
 }
 
-// The backend hashes the status at request time; approve/deny change it later.
+// The hash covers the status decided at request time (request_status). Rows from before that
+// column existed only have the current status, which approve/deny may have changed since.
 const ORIGINAL_STATUSES = { APPROVED: ['ALLOWED', 'PENDING'], DENIED: ['ALLOWED', 'PENDING'] }
 
 async function hashMatches(txn) {
+  if (txn.requestStatus) return (await hashTransaction(txn, txn.requestStatus)) === txn.hash
   for (const status of [txn.status, ...(ORIGINAL_STATUSES[txn.status] ?? [])]) {
     if ((await hashTransaction(txn, status)) === txn.hash) return true
   }

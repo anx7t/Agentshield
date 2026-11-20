@@ -77,10 +77,17 @@ export default function Dashboard() {
     return () => clearInterval(id)
   }, [refresh])
 
+  // Names come from GET /api/agents, so simulator and other-browser agents show by name too.
+  const agentNames = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
+  const namedTxns = useMemo(
+    () => txns.map((t) => ({ ...t, agentName: agentNames.get(t.agentId) ?? t.agentName })),
+    [txns, agentNames],
+  )
+
   const shownTxns = useMemo(() => {
-    if (tamperedId == null) return txns
-    return txns.map((t) => (t.id === tamperedId ? { ...t, amount: 99999, payee: 'Attacker Ltd' } : t))
-  }, [txns, tamperedId])
+    if (tamperedId == null) return namedTxns
+    return namedTxns.map((t) => (t.id === tamperedId ? { ...t, amount: 99999, payee: 'Attacker Ltd' } : t))
+  }, [namedTxns, tamperedId])
 
   function toggleTamper() {
     if (tamperedId != null) return setTamperedId(null)
@@ -119,10 +126,12 @@ export default function Dashboard() {
     }
   }
 
-  const agentNames = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
+  // Only agents whose secret is in this browser can sign test payments.
+  const signingAgents = useMemo(() => agents.filter((a) => !a.external), [agents])
   // Agents added here plus any others (e.g. the simulators) that have made payments.
   const agentCount = new Set([...agents.map((a) => a.id), ...txns.map((t) => t.agentId)]).size
-  // Rules can be set or stopped for any agent id (no secret needed), including the simulators'.
+  // Rules can be set or stopped for any agent (no secret needed), including the simulators'.
+  // Agents seen only in payments (e.g. an older backend without GET /agents) are added too.
   const ruleAgents = useMemo(() => {
     const known = new Set(agents.map((a) => a.id))
     const others = [...new Set(txns.map((t) => t.agentId))]
@@ -200,7 +209,7 @@ export default function Dashboard() {
                 subtitle="Payments that broke a rule but weren’t risky enough to stop outright"
                 badge={waitingCount ? `${waitingCount} waiting` : null}
               >
-                <ApprovePanel transactions={txns} onDecide={decide} />
+                <ApprovePanel transactions={namedTxns} onDecide={decide} />
               </Panel>
             </section>
             <Panel index="02" title="Payments" subtitle={`Newest first · updates every ${POLL_MS / 1000}s`}>
@@ -238,7 +247,7 @@ export default function Dashboard() {
               <MandateForm agents={ruleAgents} onChange={refresh} notify={notify} />
             </Panel>
             <Panel index="06" title="Test a payment" subtitle="Pretend to be an agent and see if the payment goes through">
-              <TransactionSimulator agents={agents} onChange={refresh} notify={notify} />
+              <TransactionSimulator agents={signingAgents} onChange={refresh} notify={notify} />
             </Panel>
           </div>
         </div>

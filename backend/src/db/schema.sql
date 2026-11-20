@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount REAL NOT NULL,
   payee TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('ALLOWED','PENDING','BLOCKED','APPROVED','DENIED')),
+  request_status TEXT,        -- status decided at request time; the hash covers this, not the current status
   risk_score INTEGER DEFAULT 0,
   hash TEXT,
   prev_hash TEXT,

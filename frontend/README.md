@@ -20,21 +20,23 @@ Calls made by `src/api/client.js` (contract from `backend/src/routes`):
 
 | Function | Request | Notes |
 |---|---|---|
-| `registerAgent(name)` | `POST /api/agent/register` `{ name, email }` | Email is generated (`<name>_<timestamp>@agentshield.io`). Returned `{ agentId, secret }` is saved in `localStorage` — the backend has no "list agents" route and only returns the secret once. |
+| `getAgents()` | `GET /api/agents` | Every agent and its current mandate, merged with the secrets this browser holds. Agents without a secret here (simulators, other browsers) can have rules set or stopped, but can't be used for test payments. |
+| `registerAgent(name)` | `POST /api/agent/register` `{ name, email }` | Email is generated (`<name>_<timestamp>@agentshield.io`). The returned secret is saved in `localStorage` — the backend only returns it once. |
 | `createMandate(...)` | `POST /api/mandate` `{ agent_id, max_amount, allowed_payees }` | No expiry — the schema has no such column. |
 | `revokeMandate(agentId)` | `DELETE /api/mandate/:agentId` | |
-| `requestTransaction(...)` | `POST /api/transaction/request` `{ agent_id, amount, payee, signature }` | `signature = HMAC-SHA256(secret, agentId + payee + String(amount))`, computed with Web Crypto. A 400 "No active mandate" (revoked agent) is shown as **Stopped**. |
+| `requestTransaction(...)` | `POST /api/transaction/request` `{ agent_id, amount, payee, signature }` | `signature = HMAC-SHA256(secret, agentId + payee + String(amount))`, computed with Web Crypto. A stopped agent's payment comes back `BLOCKED` with `reason` `mandate_revoked` / `no_mandate`. |
 | `approveTransaction(id)` / `denyTransaction(id)` | `POST /api/transaction/:id/approve` \| `/deny` | Shown as buttons on payments that need approval (`PENDING`). |
-| `getTransactions()` | `GET /api/transactions` | Drives the Activity history. |
-| `getLogs()` | `GET /api/logs` | Available; not used by the UI yet. |
+| `getTransactions()` | `GET /api/transactions` | Payments list, approvals, stats and the tamper check. Polled every 3 s. |
+| `getLogs()` | `GET /api/logs` | Activity history: one row per REQUEST / APPROVE / DENY. |
+| `resetDemo()` | `POST /api/demo/reset` | Reset demo button. |
 
 ## Tamper check
 
-The Activity history re-hashes every transaction in the browser (`src/api/hash.js`), matching `routes/transactions.js`:
+The Activity history re-hashes every transaction in the browser (`src/api/hash.js`), matching `utils/hashChain.js`:
 
 ```
-hash = sha256_hex(`${prev_hash || '0'}:${id}:${amount}:${payee}:${status}`)   // one chain per agent
+hash = sha256_hex(`${prev_hash || '0'}:${id}:${amount}:${payee}:${request_status}`)   // one chain per agent
 ```
 
-Approve/deny change `status` after the hash is written, so `APPROVED`/`DENIED` rows are also checked against their
-original `ALLOWED`/`PENDING` status. Rows with no hash (seed data) are listed but not part of any chain.
+`request_status` is the status at request time; approve/deny only change `status`. Rows from before that column existed
+are checked against their current status, and `APPROVED`/`DENIED` ones also against `ALLOWED`/`PENDING`.

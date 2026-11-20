@@ -78,8 +78,26 @@ async function wrapMock(fn) {
 
 // ── Agents ─────────────────────────────────────────────────
 
+// Server mandate shape → the one the UI uses.
+const toMandate = (m) => (m ? { id: m.id, maxAmount: m.max_amount, payees: m.allowed_payees ?? [], active: !m.revoked } : null)
+
+// Every agent the backend knows (GET /api/agents), merged with the secrets this browser holds.
+// Agents without a secret here (simulators, other browsers) are `external`: rules can be set
+// and stopped for them, but this browser can't sign payments as them.
 export async function getAgents() {
-  return loadAgents(mode())
+  const { agents } = await call(() => request('GET', '/agents'), () => mock.getAgents())
+  const local = new Map(loadAgents(mode()).map((a) => [a.id, a]))
+  return agents.map((a) => {
+    const mine = local.get(a.id)
+    return {
+      id: a.id,
+      name: a.name,
+      secret: mine?.secret ?? null,
+      external: !mine?.secret,
+      mandate: toMandate(a.mandate),
+      createdAt: a.created_at,
+    }
+  })
 }
 
 export async function registerAgent(name) {
@@ -113,6 +131,11 @@ export async function revokeMandate(agentId) {
 // ── Transactions ───────────────────────────────────────────
 
 // Why a payment needed checking, in plain words, based on the agent's current rules.
+const BACKEND_REASONS = {
+  mandate_revoked: 'This agent has been stopped',
+  no_mandate: 'This agent has no spending rules',
+}
+
 function explain(agent, { amount, payee }) {
   const m = agent?.mandate
   if (!m?.active) return 'This agent has no active spending rules'
@@ -130,9 +153,10 @@ export async function requestTransaction({ agentId, amount, payee }) {
   const body = { agent_id: agentId, amount, payee, signature }
   try {
     const res = await call(() => request('POST', '/transaction/request', body), () => mock.requestTransaction(body))
-    return { ...res, reason: res.status === 'ALLOWED' ? null : explain(agent, { amount, payee }) }
+    if (res.status === 'ALLOWED') return { ...res, reason: null }
+    return { ...res, reason: BACKEND_REASONS[res.reason] ?? explain(agent, { amount, payee }) }
   } catch (err) {
-    // A revoked agent has no mandate: the backend refuses the payment outright.
+    // Older backends refuse a revoked agent's payment outright instead of recording it as BLOCKED.
     if (err instanceof ApiError && err.status === 400 && /no active mandate/i.test(err.message)) {
       return { txnId: null, status: 'BLOCKED', riskScore: null, reason: explain({ mandate: null }, body) }
     }
@@ -165,6 +189,7 @@ export async function getTransactions() {
       payee: t.payee,
       status: t.status,
       riskScore: t.risk_score,
+      requestStatus: t.request_status ?? null,
       hash: t.hash,
       prevHash: t.prev_hash,
       timestamp: parseTime(t.created_at),

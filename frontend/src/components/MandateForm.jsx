@@ -14,8 +14,8 @@ export default function MandateForm({ agents, onChange, notify }) {
   const [busy, setBusy] = useState(null)
 
   const selected = agents.find((a) => a.id === agentId)
-  // For agents added elsewhere (e.g. simulators) we don't know their rules, so Stop is always allowed.
-  const hasActiveMandate = Boolean(selected?.mandate?.active || selected?.external)
+  // An agent seen only in payments has unknown rules, so Stop is allowed for it.
+  const hasActiveMandate = Boolean(selected?.mandate?.active || (selected?.external && !selected?.mandate))
 
   // Payees list including whatever is still typed in the box, so nobody has to press Enter.
   function withPending() {
@@ -87,7 +87,7 @@ export default function MandateForm({ agents, onChange, notify }) {
           <option value="">{agents.length ? 'Choose an agent…' : 'Add an agent first…'}</option>
           {agents.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name}{a.external ? ' (from payments)' : a.mandate ? ` — ${a.mandate.active ? 'rules on' : 'stopped'}` : ''}
+              {a.name}{a.mandate ? ` — ${a.mandate.active ? 'rules on' : 'stopped'}` : ''}
             </option>
           ))}
         </select>

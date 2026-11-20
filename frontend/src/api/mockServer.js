@@ -5,7 +5,7 @@ import { seedTransactions } from './mockData.js'
 
 const agents = new Map() // id -> { id, name, email, secret }
 const mandates = [] // { id, agent_id, max_amount, allowed_payees, revoked, created_at }
-const transactions = seedTransactions.map((t) => ({ ...t, hash: null, prev_hash: null })) // backend row shape
+const transactions = [] // backend row shape
 const logs = [] // { id, transaction_id, action, performed_by, note, created_at }
 let logId = 0
 
@@ -21,6 +21,8 @@ class HttpError extends Error {
 }
 
 const uid = () => Math.random().toString(16).slice(2, 13)
+const NO_MANDATE = { id: null, max_amount: 0, allowed_payees: [], revoked: 1 }
+const REQUEST_STATUS = { APPROVED: 'PENDING', DENIED: 'PENDING' }
 const now = () => new Date().toISOString().replace('T', ' ').slice(0, 19)
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms))
 
@@ -42,6 +44,19 @@ export const mock = {
     const secret = [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('')
     agents.set(id, { id, name, email, secret })
     return { agentId: id, secret }
+  },
+
+  // GET /api/agents — no secrets.
+  async getAgents() {
+    await seeded
+    await delay(50)
+    return {
+      agents: [...agents.values()].map(({ id, name, email }) => {
+        const mine = mandates.filter((m) => m.agent_id === id)
+        const m = mine.filter((x) => !x.revoked).at(-1) ?? mine.at(-1)
+        return { id, name, email, mandate: m ? { ...m, revoked: Boolean(m.revoked) } : null }
+      }),
+    }
   },
 
   async createMandate({ agent_id, max_amount, allowed_payees }) {
@@ -75,16 +90,18 @@ export const mock = {
     }
     if (amount == null || !payee) throw new HttpError(400, 'amount and payee are required')
 
-    const mandate = mandates.filter((m) => m.agent_id === agent_id && !m.revoked).at(-1)
-    if (!mandate) throw new HttpError(400, 'No active mandate found for this agent')
+    // Latest mandate, active first; a revoked one still scores (+100 → BLOCKED) and is recorded.
+    const mine = mandates.filter((m) => m.agent_id === agent_id)
+    const mandate = mine.filter((m) => !m.revoked).at(-1) ?? mine.at(-1) ?? NO_MANDATE
 
     const { score: riskScore, status } = score({ amount, payee }, mandate)
-    const last = transactions.filter((t) => t.agent_id === agent_id).at(-1)
-    const txn = { id: uid(), agent_id, mandate_id: mandate.id, amount, payee, status, risk_score: riskScore, prev_hash: last?.hash ?? null, created_at: now() }
+    const last = transactions.filter((t) => t.agent_id === agent_id && t.hash).at(-1)
+    const txn = { id: uid(), agent_id, mandate_id: mandate.id, amount, payee, status, request_status: status, risk_score: riskScore, prev_hash: last?.hash ?? null, created_at: now() }
     txn.hash = await hashTransaction({ id: txn.id, amount, payee, prevHash: txn.prev_hash }, status)
     transactions.push(txn)
-    log(txn.id, 'REQUEST', agent_id, `risk_score=${riskScore}`)
-    return { txnId: txn.id, status, riskScore }
+    const reason = mandate === NO_MANDATE ? 'no_mandate' : mandate.revoked ? 'mandate_revoked' : null
+    log(txn.id, 'REQUEST', agent_id, [`risk_score=${riskScore}`, reason].filter(Boolean).join(' '))
+    return { txnId: txn.id, status, riskScore, ...(reason && { reason }) }
   },
 
   async decide(txnId, status) {
@@ -100,6 +117,7 @@ export const mock = {
   },
 
   async getLogs() {
+    await seeded
     await delay(50)
     const byId = new Map(transactions.map((t) => [t.id, t]))
     return {
@@ -113,13 +131,36 @@ export const mock = {
   // Like POST /api/demo/reset: clear payments and history, restore the demo rows.
   async reset() {
     await delay()
-    transactions.splice(0, transactions.length, ...seedTransactions.map((t) => ({ ...t, hash: null, prev_hash: null })))
+    transactions.length = 0
     logs.length = 0
+    await seedDemo()
     return { ok: true, message: 'Demo reset', transactions: transactions.length }
   },
 
   async getTransactions() {
+    await seeded
     await delay(50)
     return { transactions: [...transactions].reverse().map((t) => ({ ...t })) }
   },
 }
+
+// Demo rows from Aryan's mockData.js, hash-chained like the backend's seed (agent_001's chain),
+// each with a REQUEST log and APPROVE/DENY where decided.
+async function seedDemo() {
+  // The demo rows' agent and mandate, as in mockData.js (no secret: it can't sign from the browser).
+  if (!agents.has('agent_001')) {
+    agents.set('agent_001', { id: 'agent_001', name: 'Aryan Mehra', email: 'aryan@agentshield.io', secret: null })
+    mandates.push({ id: 'mandate_001', agent_id: 'agent_001', max_amount: 5000, allowed_payees: ['payee_alpha', 'payee_beta'], revoked: 0, created_at: '2026-11-20 10:10:00' })
+  }
+  let prev = null
+  for (const t of seedTransactions) {
+    const request_status = REQUEST_STATUS[t.status] ?? t.status
+    const hash = await hashTransaction({ id: t.id, amount: t.amount, payee: t.payee, prevHash: prev }, request_status)
+    transactions.push({ ...t, request_status, hash, prev_hash: prev })
+    logs.push({ id: ++logId, transaction_id: t.id, action: 'REQUEST', performed_by: t.agent_id, note: 'demo', created_at: t.created_at })
+    if (t.status === 'APPROVED') logs.push({ id: ++logId, transaction_id: t.id, action: 'APPROVE', performed_by: 'demo', note: null, created_at: t.created_at })
+    if (t.status === 'DENIED') logs.push({ id: ++logId, transaction_id: t.id, action: 'DENY', performed_by: 'demo', note: null, created_at: t.created_at })
+    prev = hash
+  }
+}
+const seeded = seedDemo()
