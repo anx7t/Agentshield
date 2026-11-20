@@ -81,7 +81,10 @@ export default function RegisterAgent({ agents, onChange, notify }) {
         <ul className="mt-5 divide-y divide-line border-t border-line">
           {agents.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 font-mono text-xs">
-              <span className="text-white">{a.name}</span>
+              <span className="min-w-0 truncate text-white">
+                {a.name}
+                {a.external && <span className="ml-2 text-neutral-600" title="Its secret isn’t in this browser, so it can’t be used for test payments here">· added elsewhere</span>}
+              </span>
               <span className="flex items-center gap-3">
                 <span className="text-neutral-600" title="Agent ID">{a.id}</span>
                 <span className={a.mandate?.active ? 'text-allowed' : a.mandate ? 'text-blocked' : 'text-neutral-500'}>

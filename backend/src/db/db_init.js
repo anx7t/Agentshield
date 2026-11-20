@@ -22,9 +22,18 @@ function initDb() {
 
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
   db.exec(schema);
+  migrate(db);
 
   console.log('DB initialized. Tables verified.');
   return db;
+}
+
+// Columns added after the first release: CREATE TABLE IF NOT EXISTS won't add them to an existing DB.
+function migrate(database) {
+  const txnCols = database.prepare('PRAGMA table_info(transactions)').all().map((c) => c.name);
+  if (!txnCols.includes('request_status')) {
+    database.exec('ALTER TABLE transactions ADD COLUMN request_status TEXT');
+  }
 }
 
 module.exports = { initDb, getDb };

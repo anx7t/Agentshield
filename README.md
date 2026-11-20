@@ -104,10 +104,11 @@ Agentshield/
 | mandate_id | TEXT | FK → mandates |
 | amount | REAL | |
 | payee | TEXT | |
-| status | TEXT | ALLOWED / PENDING / BLOCKED / APPROVED / DENIED |
+| status | TEXT | current status: ALLOWED / PENDING / BLOCKED / APPROVED / DENIED |
+| request_status | TEXT | status decided at request time (ALLOWED / PENDING / BLOCKED); approve/deny never change it |
 | risk_score | INTEGER | computed by risk engine |
-| hash | TEXT | SHA-256 of this txn |
-| prev_hash | TEXT | links to previous txn (hash chain) |
+| hash | TEXT | `sha256(prev_hash‖'0' : id : amount : payee : request_status)` |
+| prev_hash | TEXT | hash of the same agent's previous txn (one chain per agent) |
 | created_at | DATETIME | auto |
 
 **`logs`** — audit trail
@@ -128,7 +129,7 @@ Located at `src/engine/riskEngine.js`. Takes a transaction and its mandate, retu
 |---|---|
 | `amount > mandate.max_amount` | +50 |
 | `payee` not in `allowed_payees` | +30 |
-| Mandate is revoked | +100 |
+| Mandate is revoked (or the agent never had one) | +100 |
 
 | Score | Status |
 |---|---|
@@ -174,6 +175,14 @@ curl http://localhost:3000/api/health
 { "agentId": "abc123", "secret": "64-char-hex-string" }
 ```
 
+**`GET /api/agents`**
+```json
+// Response 200 — never includes secrets
+{ "agents": [ { "id": "abc123", "name": "Aryan Bot", "email": "...", "created_at": "...",
+                "mandate": { "id": "xyz789", "max_amount": 5000, "allowed_payees": ["payee_alpha"], "revoked": false } } ] }
+```
+`mandate` is the agent's latest active mandate, else its latest revoked one, else `null`.
+
 #### Mandate
 
 **`POST /api/mandate`**
@@ -195,11 +204,14 @@ curl http://localhost:3000/api/health
 
 **`POST /api/transaction/request`**
 ```json
-// Request
-{ "agent_id": "abc123", "amount": 1200, "payee": "payee_alpha" }
+// Request — signature = HMAC-SHA256(secret, agent_id + payee + String(amount))
+{ "agent_id": "abc123", "amount": 1200, "payee": "payee_alpha", "signature": "hex" }
 
 // Response 201
 { "txnId": "txn_001", "status": "ALLOWED", "riskScore": 0 }
+
+// Response 201 — agent's mandate was revoked (or it never had one): recorded as BLOCKED
+{ "txnId": "txn_002", "status": "BLOCKED", "riskScore": 100, "reason": "mandate_revoked" }   // or "no_mandate"
 ```
 
 **`POST /api/transaction/:id/approve`**
@@ -245,6 +257,15 @@ curl http://localhost:3000/api/health
 }
 ```
 
+#### Demo
+
+**`POST /api/demo/reset`**
+```json
+// Response 200 — clears transactions + logs, keeps agents and mandates,
+// re-seeds 10 hash-chained demo transactions (with logs) for the first agent with an active mandate
+{ "ok": true, "message": "DB reset and re-seeded", "transactions": 10 }
+```
+
 #### Mock Bank
 
 **`POST /api/bank/transfer`**
@@ -268,7 +289,8 @@ npm run dev
 node simulator/normalAgent.js
 
 # Terminal 3 — rotates 3 attack types every 2s
-# over-limit → BLOCKED, bad payee → PENDING, forged agent → 404
+# over-limit → PENDING, bad payee → PENDING, forged agent → 404
+# after DELETE /api/mandate/<its id>, every attempt → BLOCKED (and is recorded)
 node simulator/rogueAgent.js
 ```
 
