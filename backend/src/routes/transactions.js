@@ -14,85 +14,93 @@ function hashChain(txn, prevHash) {
 
 // POST /api/transaction/request
 router.post('/transaction/request', verifyAgent, (req, res) => {
-  const { amount, payee } = req.body;
-  const agentId = req.agent.id;
+  try {
+    const { amount, payee } = req.body;
+    const agentId = req.agent.id;
 
-  if (amount == null || !payee) {
-    return res.status(400).json({ error: 'amount and payee are required' });
+    if (amount == null || !payee) {
+      return res.status(400).json({ error: 'amount and payee are required' });
+    }
+
+    const db = getDb();
+
+    const mandate = db
+      .prepare(`SELECT * FROM mandates WHERE agent_id = ? AND revoked = 0 ORDER BY created_at DESC LIMIT 1`)
+      .get(agentId);
+
+    if (!mandate) {
+      return res.status(400).json({ error: 'No active mandate found for this agent' });
+    }
+
+    const { score: riskScore, status } = score({ amount, payee }, mandate);
+
+    const lastTxn = db
+      .prepare(`SELECT hash FROM transactions WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1`)
+      .get(agentId);
+
+    const txnId = uid();
+    const txnHash = hashChain({ id: txnId, amount, payee, status }, lastTxn?.hash || null);
+
+    db.prepare(`
+      INSERT INTO transactions (id, agent_id, mandate_id, amount, payee, status, risk_score, hash, prev_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(txnId, agentId, mandate.id, amount, payee, status, riskScore, txnHash, lastTxn?.hash || null);
+
+    db.prepare(`
+      INSERT INTO logs (transaction_id, action, performed_by, note)
+      VALUES (?, 'REQUEST', ?, ?)
+    `).run(txnId, agentId, `risk_score=${riskScore}`);
+
+    res.status(201).json({ txnId, status, riskScore });
+  } catch (err) {
+    res.status(500).json({ error: 'Transaction request failed', detail: err.message });
   }
-
-  const db = getDb();
-
-  const mandate = db
-    .prepare(`SELECT * FROM mandates WHERE agent_id = ? AND revoked = 0 ORDER BY created_at DESC LIMIT 1`)
-    .get(agentId);
-
-  if (!mandate) {
-    return res.status(403).json({ error: 'No active mandate found for this agent' });
-  }
-
-  const { score: riskScore, status } = score({ amount, payee }, mandate);
-
-  const lastTxn = db
-    .prepare(`SELECT hash FROM transactions WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1`)
-    .get(agentId);
-
-  const txnId = uid();
-  const txnHash = hashChain({ id: txnId, amount, payee, status }, lastTxn?.hash || null);
-
-  db.prepare(`
-    INSERT INTO transactions (id, agent_id, mandate_id, amount, payee, status, risk_score, hash, prev_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(txnId, agentId, mandate.id, amount, payee, status, riskScore, txnHash, lastTxn?.hash || null);
-
-  db.prepare(`
-    INSERT INTO logs (transaction_id, action, performed_by, note)
-    VALUES (?, 'REQUEST', ?, ?)
-  `).run(txnId, agentId, `risk_score=${riskScore}`);
-
-  res.status(201).json({ txnId, status, riskScore });
 });
 
 // POST /api/transaction/:id/approve
 router.post('/transaction/:id/approve', (req, res) => {
-  const { id } = req.params;
-  const db = getDb();
+  try {
+    const { id } = req.params;
+    const db = getDb();
 
-  const txn = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(id);
-  if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+    const txn = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(id);
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' });
 
-  if (!['PENDING', 'ALLOWED'].includes(txn.status)) {
-    return res.status(400).json({ error: `Cannot approve a transaction with status ${txn.status}` });
+    if (!['PENDING', 'ALLOWED'].includes(txn.status)) {
+      return res.status(400).json({ error: `Cannot approve a transaction with status ${txn.status}` });
+    }
+
+    db.prepare(`UPDATE transactions SET status = 'APPROVED' WHERE id = ?`).run(id);
+    db.prepare(`INSERT INTO logs (transaction_id, action, performed_by) VALUES (?, 'APPROVE', ?)`)
+      .run(id, req.body?.performed_by || 'system');
+
+    res.json({ txnId: id, status: 'APPROVED' });
+  } catch (err) {
+    res.status(500).json({ error: 'Approve failed', detail: err.message });
   }
-
-  db.prepare(`UPDATE transactions SET status = 'APPROVED' WHERE id = ?`).run(id);
-  db.prepare(`
-    INSERT INTO logs (transaction_id, action, performed_by)
-    VALUES (?, 'APPROVE', ?)
-  `).run(id, req.body?.performed_by || 'system');
-
-  res.json({ txnId: id, status: 'APPROVED' });
 });
 
 // POST /api/transaction/:id/deny
 router.post('/transaction/:id/deny', (req, res) => {
-  const { id } = req.params;
-  const db = getDb();
+  try {
+    const { id } = req.params;
+    const db = getDb();
 
-  const txn = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(id);
-  if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+    const txn = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(id);
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' });
 
-  if (!['PENDING', 'ALLOWED'].includes(txn.status)) {
-    return res.status(400).json({ error: `Cannot deny a transaction with status ${txn.status}` });
+    if (!['PENDING', 'ALLOWED'].includes(txn.status)) {
+      return res.status(400).json({ error: `Cannot deny a transaction with status ${txn.status}` });
+    }
+
+    db.prepare(`UPDATE transactions SET status = 'DENIED' WHERE id = ?`).run(id);
+    db.prepare(`INSERT INTO logs (transaction_id, action, performed_by) VALUES (?, 'DENY', ?)`)
+      .run(id, req.body?.performed_by || 'system');
+
+    res.json({ txnId: id, status: 'DENIED' });
+  } catch (err) {
+    res.status(500).json({ error: 'Deny failed', detail: err.message });
   }
-
-  db.prepare(`UPDATE transactions SET status = 'DENIED' WHERE id = ?`).run(id);
-  db.prepare(`
-    INSERT INTO logs (transaction_id, action, performed_by)
-    VALUES (?, 'DENY', ?)
-  `).run(id, req.body?.performed_by || 'system');
-
-  res.json({ txnId: id, status: 'DENIED' });
 });
 
 module.exports = router;

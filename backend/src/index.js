@@ -5,6 +5,8 @@ const { initDb } = require('./db/db_init');
 
 const mandateRoutes = require('./routes/mandates');
 const transactionRoutes = require('./routes/transactions');
+const agentRoutes = require('./routes/agents');
+const logsRoutes = require('./routes/logs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,9 +16,12 @@ app.use(express.json());
 
 initDb();
 
+app.use('/api', agentRoutes);
 app.use('/api', mandateRoutes);
 app.use('/api', transactionRoutes);
+app.use('/api', logsRoutes);
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => console.log(`AgentShield backend running on port ${PORT}`));
