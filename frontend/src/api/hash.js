@@ -19,7 +19,8 @@ export function signTransaction(secret, { agentId, payee, amount }) {
 }
 
 export function hashTransaction(txn, status = txn.status) {
-  return sha256(`${txn.prevHash || '0'}:${txn.id}:${txn.amount}:${txn.payee}:${status}`)
+  const prevHash = txn.prevHash || txn.prev_hash
+  return sha256(`${prevHash || '0'}:${txn.id}:${txn.amount}:${txn.payee}:${status}`)
 }
 
 // The hash covers the status decided at request time (request_status). Rows from before that
@@ -27,7 +28,8 @@ export function hashTransaction(txn, status = txn.status) {
 const ORIGINAL_STATUSES = { APPROVED: ['ALLOWED', 'PENDING'], DENIED: ['ALLOWED', 'PENDING'] }
 
 async function hashMatches(txn) {
-  if (txn.requestStatus) return (await hashTransaction(txn, txn.requestStatus)) === txn.hash
+  const requestStatus = txn.requestStatus || txn.request_status
+  if (requestStatus) return (await hashTransaction(txn, requestStatus)) === txn.hash
   for (const status of [txn.status, ...(ORIGINAL_STATUSES[txn.status] ?? [])]) {
     if ((await hashTransaction(txn, status)) === txn.hash) return true
   }
@@ -40,8 +42,9 @@ export async function verifyChain(txns) {
   const hashesByAgent = new Map()
   for (const t of txns) {
     if (!t.hash) continue
-    if (!hashesByAgent.has(t.agentId)) hashesByAgent.set(t.agentId, new Set())
-    hashesByAgent.get(t.agentId).add(t.hash)
+    const agentId = t.agentId || t.agent_id
+    if (!hashesByAgent.has(agentId)) hashesByAgent.set(agentId, new Set())
+    hashesByAgent.get(agentId).add(t.hash)
   }
 
   const seenFirst = new Set()
@@ -53,12 +56,14 @@ export async function verifyChain(txns) {
     if (!(await hashMatches(t))) {
       return { valid: false, brokenIndex: i, checked, reason: 'Someone edited it after it was saved' }
     }
-    if (!t.prevHash) {
-      if (seenFirst.has(t.agentId)) {
-        return { valid: false, brokenIndex: i, checked, reason: 'It isn’t linked to the record before it' }
+    const tAgentId = t.agentId || t.agent_id
+    const tPrevHash = t.prevHash || t.prev_hash
+    if (!tPrevHash) {
+      if (seenFirst.has(tAgentId)) {
+        return { valid: false, brokenIndex: i, checked, reason: ‘It isn’t linked to the record before it’ }
       }
-      seenFirst.add(t.agentId)
-    } else if (!hashesByAgent.get(t.agentId).has(t.prevHash)) {
+      seenFirst.add(tAgentId)
+    } else if (!hashesByAgent.get(tAgentId).has(tPrevHash)) {
       return { valid: false, brokenIndex: i, checked, reason: 'The record it links to is missing or was changed' }
     }
   }
