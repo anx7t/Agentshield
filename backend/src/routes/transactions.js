@@ -4,6 +4,7 @@ const { getDb } = require('../db/db_init');
 const { score } = require('../engine/riskEngine');
 const verifyAgent = require('../middleware/verifyAgent');
 const { appendHash, lastHashFor } = require('../utils/hashChain');
+const { broadcast } = require('../sse');
 
 const router = express.Router();
 
@@ -46,6 +47,7 @@ router.post('/transaction/request', verifyAgent, (req, res) => {
       VALUES (?, 'REQUEST', ?, ?)
     `).run(txnId, agentId, [`risk_score=${riskScore}`, note].filter(Boolean).join(' '));
 
+    broadcast('transaction', { txnId, status, agentId })
     res.status(201).json({ txnId, status, riskScore, ...(note && { reason: note }) });
   } catch (err) {
     res.status(500).json({ error: 'Transaction request failed', detail: err.message });
@@ -71,6 +73,7 @@ function decide(newStatus, action) {
       db.prepare(`INSERT INTO logs (transaction_id, action, performed_by) VALUES (?, ?, ?)`)
         .run(id, action, req.body?.performed_by || 'system');
 
+      broadcast('transaction', { txnId: id, status: newStatus })
       res.json({ txnId: id, status: newStatus });
     } catch (err) {
       res.status(500).json({ error: `${action === 'APPROVE' ? 'Approve' : 'Deny'} failed`, detail: err.message });

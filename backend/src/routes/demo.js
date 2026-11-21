@@ -1,6 +1,7 @@
 const express = require('express');
 const { seedTransactions } = require('../db/demoData');
 const { getDb } = require('../db/db_init');
+const { broadcast } = require('../sse');
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.post('/demo/reset', (req, res) => {
 
     const count = seedTransactions(db, agent.id, mandate.id);
 
+    broadcast('reset', {})
     res.json({ ok: true, message: 'DB reset and re-seeded', transactions: count });
   } catch (err) {
     res.status(500).json({ error: 'Reset failed', detail: err.message });

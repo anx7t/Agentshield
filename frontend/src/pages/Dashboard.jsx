@@ -16,6 +16,7 @@ import {
   getTransactions,
   isMock,
   onModeChange,
+  openEvents,
   resetDemo,
 } from '../api/client.js'
 import { currentUser, logout } from '../api/auth.js'
@@ -31,6 +32,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [toasts, setToasts] = useState([])
   const [mock, setMock] = useState(isMock())
+  const [live, setLive] = useState(false)
   const [resetting, setResetting] = useState(false)
   // Demo only: corrupt one record in the displayed copy to show tamper detection.
   const [tamperedId, setTamperedId] = useState(null)
@@ -70,6 +72,22 @@ export default function Dashboard() {
   }, [notify, scrollToApprovals])
 
   useEffect(() => onModeChange(setMock), [])
+
+  // SSE for real-time pushes; polling stays as a fallback for missed events
+  useEffect(() => {
+    const es = openEvents(refresh)
+    if (!es) return
+    const onOpen = () => setLive(true)
+    const onError = () => setLive(false)
+    es.addEventListener('open', onOpen)
+    es.addEventListener('error', onError)
+    return () => {
+      es.removeEventListener('open', onOpen)
+      es.removeEventListener('error', onError)
+      es.close()
+      setLive(false)
+    }
+  }, [mock, refresh])
 
   useEffect(() => {
     refresh()
@@ -153,11 +171,17 @@ export default function Dashboard() {
           action={
             <div className="flex items-center gap-4 sm:gap-6">
               <span
-                className={`hidden items-center gap-2 font-mono text-[12px] sm:inline-flex ${mock ? 'text-neutral-400' : 'text-allowed'}`}
-                title={mock ? 'Using built-in example data because the server isn’t running' : 'Connected to the server'}
+                className={`hidden items-center gap-2 font-mono text-[12px] sm:inline-flex ${mock ? ‘text-neutral-400’ : ‘text-allowed’}`}
+                title={
+                  mock
+                    ? ‘Using built-in example data because the server isn\’t running’
+                    : live
+                    ? ‘Payments stream in without page refresh’
+                    : ‘Connected to the server’
+                }
               >
-                <span className={`blink h-1.5 w-1.5 ${mock ? 'bg-neutral-400' : 'bg-allowed'}`} />
-                {mock ? 'Demo data' : 'Connected'}
+                <span className={`h-1.5 w-1.5 ${mock ? ‘bg-neutral-400’ : live ? ‘blink bg-allowed’ : ‘bg-allowed’}`} />
+                {mock ? ‘Demo data’ : live ? ‘Live’ : ‘Connected’}
               </span>
               <button
                 onClick={handleReset}

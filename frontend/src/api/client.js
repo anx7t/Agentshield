@@ -220,3 +220,14 @@ export async function getLogs() {
 export async function resetDemo() {
   return call(() => request('POST', '/demo/reset'), () => mock.reset())
 }
+
+// Opens a Server-Sent Events connection. Calls onUpdate() on each transaction or reset event.
+// Returns the EventSource so the caller can listen to open/error and call .close().
+// Returns null in mock mode or when EventSource is unavailable.
+export function openEvents(onUpdate) {
+  if (usingMock || typeof EventSource === 'undefined') return null
+  const es = new EventSource(`${BASE}/events`)
+  es.addEventListener('transaction', onUpdate)
+  es.addEventListener('reset', onUpdate)
+  return es
+}
