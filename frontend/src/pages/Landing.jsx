@@ -14,14 +14,14 @@ const PROTECTIONS = [
     n: '01',
     icon: '🔐',
     title: 'Identity Check',
-    body: 'Every AI agent has to prove who it is. Unknown agents can’t make payments.',
+    body: "Every AI agent has to prove who it is. Unknown agents can't make payments.",
     spec: 'payrollBot  ✓ verified',
   },
   {
     n: '02',
     icon: '📊',
     title: 'Spending Check',
-    body: 'Each payment is compared with the agent’s rules — how much, to whom, and until when. Anything outside the rules is stopped.',
+    body: "Each payment is compared with the agent's rules — how much, to whom, and until when. Anything outside the rules is stopped.",
     spec: '₹9,000 is over the ₹5,000 limit → stopped',
   },
   {
@@ -40,7 +40,7 @@ const LOG = [
   ['12:04:20', 'rogueAgent', '₹100 → Attacker Ltd', 'Stopped', 'not on the allowed list'],
 ]
 
-// Scattered "dead pixels" around the ribbon, fixed positions so they don't jump.
+// Scattered "dead pixels" around the ribbon, fixed positions so they don't jump.'
 const PIXELS = [
   [8, 12, 4], [17, 64, 3], [26, 30, 5], [38, 78, 3], [47, 18, 4], [55, 58, 3],
   [63, 88, 5], [71, 26, 3], [79, 70, 4], [86, 40, 3], [92, 84, 5], [96, 16, 3],
@@ -71,7 +71,7 @@ export default function Landing() {
             </h1>
             <p className="rise mt-8 max-w-[34rem] font-mono text-[13px] leading-relaxed text-neutral-400 sm:text-sm" style={{ animationDelay: '.12s' }}>
               AgentShield checks every payment an AI agent tries to make. If it breaks the rules you set, we stop it — and
-              keep a record that can’t be secretly changed.
+              keep a record that can't be secretly changed.'
             </p>
             <div className="rise mt-9 flex flex-wrap items-center gap-6" style={{ animationDelay: '.2s' }}>
               <Link to="/dashboard" className="btn">

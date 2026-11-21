@@ -37,7 +37,7 @@ async function hashMatches(txn) {
 }
 
 // Each agent has its own chain. Returns the first broken record (index into txns), if any.
-// Records without a hash (e.g. seeded demo rows) aren't part of any chain and are skipped.
+// Records without a hash (e.g. seeded demo rows) aren't part of any chain and are skipped.'
 export async function verifyChain(txns) {
   const hashesByAgent = new Map()
   for (const t of txns) {
@@ -60,7 +60,7 @@ export async function verifyChain(txns) {
     const tPrevHash = t.prevHash || t.prev_hash
     if (!tPrevHash) {
       if (seenFirst.has(tAgentId)) {
-        return { valid: false, brokenIndex: i, checked, reason: ‘It isn’t linked to the record before it’ }
+        return { valid: false, brokenIndex: i, checked, reason: "It isn't linked to the record before it" }
       }
       seenFirst.add(tAgentId)
     } else if (!hashesByAgent.get(tAgentId).has(tPrevHash)) {

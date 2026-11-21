@@ -37,7 +37,7 @@ export default function Login() {
             <span className="scan">dashboard</span>
           </h1>
           <p className="rise mt-6 max-w-sm font-mono text-[13px] leading-relaxed text-neutral-400" style={{ animationDelay: '.16s' }}>
-            Set spending rules for your AI agents, stop risky ones, and check that your records haven’t been changed.
+            Set spending rules for your AI agents, stop risky ones, and check that your records haven't been changed.'
           </p>
         </div>
 

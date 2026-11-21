@@ -71,7 +71,7 @@ export default function MandateForm({ agents, onChange, notify }) {
     setBusy('revoke')
     try {
       await revokeMandate(agentId)
-      notify('error', 'Agent stopped ⛔ — it can’t make payments now')
+      notify('error', "Agent stopped ⛔ — it can't make payments now")
       onChange()
     } catch (err) {
       notify('error', err.message)

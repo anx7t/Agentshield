@@ -1,5 +1,5 @@
-// Static demo rows from Aryan's backend/mockData.js, used to seed demo-data mode
-// so the dashboard isn't empty when the backend isn't running.
+// Static demo rows from Aryan's backend/mockData.js, used to seed demo-data mode'
+// so the dashboard isn't empty when the backend isn't running.'
 export const seedTransactions = [
   { id: 'txn_001', agent_id: 'agent_001', mandate_id: 'mandate_001', amount: 1200, payee: 'payee_alpha', status: 'ALLOWED', risk_score: 0, created_at: '2026-11-20T10:15:00Z' },
   { id: 'txn_002', agent_id: 'agent_001', mandate_id: 'mandate_001', amount: 3400, payee: 'payee_beta', status: 'ALLOWED', risk_score: 0, created_at: '2026-11-20T10:16:00Z' },

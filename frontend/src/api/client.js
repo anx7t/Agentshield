@@ -1,5 +1,5 @@
 // API client for the AgentShield backend (backend/src/routes).
-// Talks to the real backend; if it's unreachable, falls back to an in-browser copy
+// Talks to the real backend; if it's unreachable, falls back to an in-browser copy'
 // (mockServer.js) so the demo never dead-ends.
 //
 // Base URL: /api, proxied to http://localhost:3000 in dev (vite.config.js).
@@ -46,7 +46,7 @@ async function request(method, path, body) {
     // non-JSON response
   }
   if (!res.ok) {
-    // No JSON body usually means there's no backend behind the proxy.
+    // No JSON body usually means there's no backend behind the proxy.'
     if (data === null) throw new TypeError(`Backend unavailable (${res.status})`)
     throw new ApiError(res.status, data.error || data.message || `Request failed (${res.status})`)
   }
@@ -83,7 +83,7 @@ const toMandate = (m) => (m ? { id: m.id, maxAmount: m.max_amount, payees: m.all
 
 // Every agent the backend knows (GET /api/agents), merged with the secrets this browser holds.
 // Agents without a secret here (simulators, other browsers) are `external`: rules can be set
-// and stopped for them, but this browser can't sign payments as them.
+// and stopped for them, but this browser can't sign payments as them.'
 export async function getAgents() {
   const { agents } = await call(() => request('GET', '/agents'), () => mock.getAgents())
   const local = new Map(loadAgents(mode()).map((a) => [a.id, a]))
@@ -130,7 +130,7 @@ export async function revokeMandate(agentId) {
 
 // ── Transactions ───────────────────────────────────────────
 
-// Why a payment needed checking, in plain words, based on the agent's current rules.
+// Why a payment needed checking, in plain words, based on the agent's current rules.'
 const BACKEND_REASONS = {
   mandate_revoked: 'This agent has been stopped',
   no_mandate: 'This agent has no spending rules',
@@ -141,14 +141,14 @@ function explain(agent, { amount, payee }) {
   if (!m?.active) return 'This agent has no active spending rules'
   const reasons = []
   if (amount > m.maxAmount) reasons.push(`Over the ₹${m.maxAmount.toLocaleString('en-IN')} limit`)
-  if (m.payees.length && !m.payees.includes(payee)) reasons.push(`"${payee}" isn’t on the allowed list`)
+  if (m.payees.length && !m.payees.includes(payee)) reasons.push(`"${payee}" isn't on the allowed list`)
   return reasons.join(' and ') || null
 }
 
 // Returns { txnId, status, riskScore, reason }. status: ALLOWED | PENDING | BLOCKED.
 export async function requestTransaction({ agentId, amount, payee }) {
   const agent = findAgent(mode(), agentId)
-  if (!agent) throw new ApiError(404, 'This agent isn’t registered in this browser. Add it again.')
+  if (!agent) throw new ApiError(404, "This agent isn't registered in this browser. Add it again.")
   const signature = await signTransaction(agent.secret, { agentId, payee, amount })
   const body = { agent_id: agentId, amount, payee, signature }
   try {
@@ -156,7 +156,7 @@ export async function requestTransaction({ agentId, amount, payee }) {
     if (res.status === 'ALLOWED') return { ...res, reason: null }
     return { ...res, reason: BACKEND_REASONS[res.reason] ?? explain(agent, { amount, payee }) }
   } catch (err) {
-    // Older backends refuse a revoked agent's payment outright instead of recording it as BLOCKED.
+    // Older backends refuse a revoked agent's payment outright instead of recording it as BLOCKED.'
     if (err instanceof ApiError && err.status === 400 && /no active mandate/i.test(err.message)) {
       return { txnId: null, status: 'BLOCKED', riskScore: null, reason: explain({ mandate: null }, body) }
     }
@@ -171,7 +171,7 @@ export const approveTransaction = (txnId) =>
 export const denyTransaction = (txnId) =>
   call(() => request('POST', `/transaction/${encodeURIComponent(txnId)}/deny`, { performed_by: 'dashboard' }), () => mock.decide(txnId, 'DENIED'))
 
-// SQLite's datetime('now') is UTC without a zone marker.
+// SQLite's datetime('now') is UTC without a zone marker.'
 const parseTime = (s) => (s && !/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? new Date(s.replace(' ', 'T') + 'Z') : new Date(s))
 
 // All transactions, oldest first, in the shape the UI uses.

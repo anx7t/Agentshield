@@ -148,7 +148,7 @@ export default function Dashboard() {
   const signingAgents = useMemo(() => agents.filter((a) => !a.external), [agents])
   // Agents added here plus any others (e.g. the simulators) that have made payments.
   const agentCount = new Set([...agents.map((a) => a.id), ...txns.map((t) => t.agentId)]).size
-  // Rules can be set or stopped for any agent (no secret needed), including the simulators'.
+  // Rules can be set or stopped for any agent (no secret needed), including the simulators'.'
   // Agents seen only in payments (e.g. an older backend without GET /agents) are added too.
   const ruleAgents = useMemo(() => {
     const known = new Set(agents.map((a) => a.id))
@@ -171,17 +171,17 @@ export default function Dashboard() {
           action={
             <div className="flex items-center gap-4 sm:gap-6">
               <span
-                className={`hidden items-center gap-2 font-mono text-[12px] sm:inline-flex ${mock ? ‘text-neutral-400’ : ‘text-allowed’}`}
+                className={`hidden items-center gap-2 font-mono text-[12px] sm:inline-flex ${mock ? 'text-neutral-400' : 'text-allowed'}`}
                 title={
                   mock
-                    ? ‘Using built-in example data because the server isn\’t running’
+                    ? "Using built-in example data because the server isn't running"
                     : live
-                    ? ‘Payments stream in without page refresh’
-                    : ‘Connected to the server’
+                    ? 'Payments stream in without page refresh'
+                    : 'Connected to the server'
                 }
               >
-                <span className={`h-1.5 w-1.5 ${mock ? ‘bg-neutral-400’ : live ? ‘blink bg-allowed’ : ‘bg-allowed’}`} />
-                {mock ? ‘Demo data’ : live ? ‘Live’ : ‘Connected’}
+                <span className={`h-1.5 w-1.5 ${mock ? 'bg-neutral-400' : live ? 'blink bg-allowed' : 'bg-allowed'}`} />
+                {mock ? 'Demo data' : live ? 'Live' : 'Connected'}
               </span>
               <button
                 onClick={handleReset}
@@ -230,7 +230,7 @@ export default function Dashboard() {
               <Panel
                 index="01"
                 title="Needs your approval"
-                subtitle="Payments that broke a rule but weren’t risky enough to stop outright"
+                subtitle="Payments that broke a rule but weren't risky enough to stop outright"
                 badge={waitingCount ? `${waitingCount} waiting` : null}
               >
                 <ApprovePanel transactions={namedTxns} onDecide={decide} />
@@ -244,7 +244,7 @@ export default function Dashboard() {
           <Panel
             index="03"
             title="Activity history"
-            subtitle="Every request, approval and denial — in a record that can’t be secretly changed"
+            subtitle="Every request, approval and denial — in a record that can't be secretly changed"
             action={
               <button
                 onClick={toggleTamper}

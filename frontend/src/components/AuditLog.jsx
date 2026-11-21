@@ -46,7 +46,7 @@ export default function AuditLog({ logs, transactions, agentNames }) {
                 <Tip text="A unique code made from this payment. If anything in it changes, this code changes too.">Code</Tip>
               </th>
               <th className="px-3 py-3">
-                <Tip text="The code of this agent’s previous payment. Each one is linked to the one before it, so editing any record breaks the links after it.">
+                <Tip text="The code of this agent's previous payment. Each one is linked to the one before it, so editing any record breaks the links after it.">
                   Linked to
                 </Tip>
               </th>
@@ -116,7 +116,7 @@ function ChainBanner({ result, rowNumber }) {
         <div className="text-lg font-bold uppercase tracking-tight text-white sm:text-xl">
           Warning: {rowNumber > 0 ? `record #${rowNumber}` : 'a record'} was changed
         </div>
-        <div className="mt-1 font-mono text-[11px] text-danger">{result.reason}. Records after it can’t be trusted.</div>
+        <div className="mt-1 font-mono text-[11px] text-danger">{result.reason}. Records after it can't be trusted.</div>'
       </div>
     </div>
   )

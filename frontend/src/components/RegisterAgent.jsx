@@ -83,7 +83,7 @@ export default function RegisterAgent({ agents, onChange, notify }) {
             <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 font-mono text-xs">
               <span className="min-w-0 truncate text-white">
                 {a.name}
-                {a.external && <span className="ml-2 text-neutral-600" title="Its secret isn’t in this browser, so it can’t be used for test payments here">· added elsewhere</span>}
+                {a.external && <span className="ml-2 text-neutral-600" title="Its secret isn't in this browser, so it can't be used for test payments here">· added elsewhere</span>}
               </span>
               <span className="flex items-center gap-3">
                 <span className="text-neutral-600" title="Agent ID">{a.id}</span>

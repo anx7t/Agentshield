@@ -1,4 +1,4 @@
-// The backend has no "list agents" route and only returns an agent's secret once,
+// The backend has no "list agents" route and only returns an agent's secret once,'
 // at registration. We keep registered agents (and their current rules) in this browser.
 
 function key(mode) {

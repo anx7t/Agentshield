@@ -44,7 +44,7 @@ export default function Ribbon({ className = '' }) {
         const a2 = u * 2.0 - t * 0.28
         const x = -0.08 * w + u * 1.16 * w
         const y = h * 0.52 + Math.sin(a1) * h * 0.18 + Math.sin(a2) * h * 0.08
-        // Align each block with the path's slope so the ribbon reads as one band.
+        // Align each block with the path's slope so the ribbon reads as one band.'
         const dy = Math.cos(a1) * 4.6 * h * 0.18 + Math.cos(a2) * 2.0 * h * 0.08
         const slope = Math.atan2(dy, 1.16 * w)
         // Blocks sit at an angle like falling dominoes; a travelling wave twists them.

@@ -1,4 +1,4 @@
-// In-browser stand-in for the backend, used when it isn't reachable.
+// In-browser stand-in for the backend, used when it isn't reachable.'
 // Mirrors backend/src routes: same request/response shapes, risk scoring, signing and hash chain.
 import { hashTransaction, signTransaction } from './hash.js'
 import { seedTransactions } from './mockData.js'
@@ -144,10 +144,10 @@ export const mock = {
   },
 }
 
-// Demo rows from Aryan's mockData.js, hash-chained like the backend's seed (agent_001's chain),
+// Demo rows from Aryan"s mockData.js, hash-chained like the backend's seed (agent_001"s chain),
 // each with a REQUEST log and APPROVE/DENY where decided.
 async function seedDemo() {
-  // The demo rows' agent and mandate, as in mockData.js (no secret: it can't sign from the browser).
+  // The demo rows' agent and mandate, as in mockData.js (no secret: it can't sign from the browser).'
   if (!agents.has('agent_001')) {
     agents.set('agent_001', { id: 'agent_001', name: 'Aryan Mehra', email: 'aryan@agentshield.io', secret: null })
     mandates.push({ id: 'mandate_001', agent_id: 'agent_001', max_amount: 5000, allowed_payees: ['payee_alpha', 'payee_beta'], revoked: 0, created_at: '2026-11-20 10:10:00' })
